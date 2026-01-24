@@ -43,7 +43,7 @@ export const config: VendureConfig = {
         type: 'postgres',
         // FIRST DEPLOYMENT: Set to true to create tables
         // AFTER FIRST SUCCESS: Change back to false and use migrations
-        synchronize: false,
+        synchronize: true,
         migrations: [path.join(__dirname, './migrations/*.+(js|ts)')],
         logging: false,  // Enable logging to see what's happening
         database: process.env.DB_NAME,
