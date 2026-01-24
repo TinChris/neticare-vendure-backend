@@ -1,0 +1,45 @@
+# =====================================
+# VENDURE WEBSHOP - ROOT GITIGNORE
+# =====================================
+
+# Environment files (SECRETS - niemals committen!)
+.env
+.env.local
+.env.*.local
+
+# Log files
+*.log
+logs-*.txt
+logs-*.md
+vendure-logs.txt
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+.claude
+
+# Storefronts (noch nicht fertig)
+storefronts/
+docker-compose.storefront1.yml
+docker-compose.storefront2.yml
+
+#logs
+logs-neustart.txt
+logs-neustart1.txt
+logs-neustart2.txt
+logs-neustart3.txt
+logs-neustart4.txt
+logs-neustart5.txt
+logs-neustart5.md
+vendure-logs.txt

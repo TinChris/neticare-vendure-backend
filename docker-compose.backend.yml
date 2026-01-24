@@ -1,0 +1,79 @@
+# ============================================
+# VENDURE BACKEND - Deploy this FIRST
+# PostgreSQL + Vendure Server
+# ============================================
+
+services:
+  # ----------------------------------------
+  # PostgreSQL Database
+  # ----------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: vendure-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-vendure}
+      POSTGRES_USER: ${DB_USERNAME:-vendure}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-vendure} -d ${DB_NAME:-vendure}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - vendure-network
+
+  # ----------------------------------------
+  # Vendure Backend Server
+  # ----------------------------------------
+  vendure-server:
+    build:
+      context: ./my-vendure
+      dockerfile: Dockerfile
+    container_name: vendure-server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-vendure}
+      DB_USERNAME: ${DB_USERNAME:-vendure}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SCHEMA: public
+      DB_SYNC: ${DB_SYNC:-false}
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      SUPERADMIN_USERNAME: ${SUPERADMIN_USERNAME:-superadmin}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD}
+      ASSET_URL_PREFIX: ${ASSET_URL_PREFIX:-https://shopadmin.neticare.at/assets/}
+      STOREFRONT_URL: ${STOREFRONT_URL:-https://shop1.neticare.at}
+    volumes:
+      - vendure_assets:/app/static/assets
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/shop-api?query=%7B__typename%7D"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - vendure-network
+
+volumes:
+  postgres_data:
+    name: vendure_postgres_data
+  vendure_assets:
+    name: vendure_assets
+
+networks:
+  vendure-network:
+    name: vendure-network
+    driver: bridge

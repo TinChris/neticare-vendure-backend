@@ -1,0 +1,4 @@
+admin: shopadmin.neticare.at
+shop1: shop1.neticare.at
+shop2: shop2.neticare.at
+shop-api: shopadmin.neticare.at/shop-api

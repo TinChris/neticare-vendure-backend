@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+admin-ui/
+
+# Environment files (secrets!)
+.env
+.env.local
+.env.*.local
+
+# Static assets (user uploads)
+static/assets/
+!static/assets/.gitkeep
+
+# Email test output
+static/email/test-emails/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+.tanstack/
+tmp/
+temp/
+*.tmp
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Docker (nicht committen)
+docker-compose.yml

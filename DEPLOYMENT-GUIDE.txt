@@ -1,0 +1,352 @@
+================================================================================
+VENDURE WEBSHOP DEPLOYMENT GUIDE
+================================================================================
+Erstellt: 2026-01-24
+Projekt: Vendure 3.5.2 + 2 Next.js Storefronts + PostgreSQL
+Ziel: Coolify Deployment
+================================================================================
+
+INHALTSVERZEICHNIS
+------------------
+1. Projektstruktur
+2. Wichtige Dateien
+3. Bekannte Probleme & Lösungen
+4. Deployment-Schritte (Backend)
+5. Deployment-Schritte (Storefronts)
+6. Coolify-Konfiguration
+7. Nach dem Deployment
+8. Nützliche Befehle
+
+================================================================================
+1. PROJEKTSTRUKTUR
+================================================================================
+
+vendure-deploy/
+├── .env                              # Haupt-Environment (für Docker Compose)
+├── .env.example                      # Template für .env
+├── docker-compose.backend.yml        # Backend: PostgreSQL + Vendure
+├── docker-compose.storefront1.yml    # Storefront 1 (bearshop)
+├── docker-compose.storefront2.yml    # Storefront 2 (neticare)
+├── my-vendure/                       # Vendure Backend
+│   ├── Dockerfile
+│   ├── .dockerignore
+│   ├── package.json
+│   ├── pnpm-lock.yaml
+│   ├── src/
+│   │   ├── index.ts
+│   │   ├── index-worker.ts
+│   │   └── vendure-config.ts
+│   └── static/
+│       ├── assets/                   # Uploads (Volume mounten!)
+│       └── email/
+└── storefronts/
+    ├── storefront-next1/             # Bearshop
+    │   ├── Dockerfile
+    │   ├── .dockerignore
+    │   ├── next.config.ts            # output: 'standalone' wichtig!
+    │   └── ...
+    └── storefront-next2/             # Neticare
+        └── (gleiche Struktur)
+
+================================================================================
+2. WICHTIGE DATEIEN
+================================================================================
+
+.env (im Root-Ordner vendure-deploy/)
+-------------------------------------
+# Database
+DB_NAME=vendure
+DB_USERNAME=vendure
+DB_PASSWORD=<sicheres-passwort>        # openssl rand -base64 32
+
+# Vendure
+COOKIE_SECRET=<random-string>          # openssl rand -base64 32
+SUPERADMIN_USERNAME=superadmin
+SUPERADMIN_PASSWORD=<starkes-passwort>
+
+# URLs
+ASSET_URL_PREFIX=https://shopadmin.neticare.at/assets/
+STOREFRONT_URL=https://shop1.neticare.at
+VENDURE_INTERNAL_URL=http://vendure-server:3000
+STOREFRONT1_URL=https://shop1.neticare.at
+STOREFRONT2_URL=https://shop2.neticare.at
+REVALIDATION_SECRET=<random-string>    # openssl rand -base64 32
+
+WICHTIG: .env liegt im Root (vendure-deploy/), NICHT in my-vendure/!
+Docker Compose liest .env automatisch aus dem Ordner der compose-Datei.
+
+
+Dockerfile (my-vendure/Dockerfile)
+----------------------------------
+Kritische Punkte:
+- Base Image: node:22-slim (NICHT alpine wegen bcrypt!)
+- Build-Tools: python3, make, g++ (für native modules)
+- Stage 1: pnpm für Build
+- Stage 2: npm für Production (bessere native module Unterstützung)
+
+
+next.config.ts (Storefronts)
+----------------------------
+MUSS enthalten:
+  output: 'standalone'    # Für Docker-Deployment erforderlich
+
+
+vendure-config.ts
+-----------------
+Für ersten Start:
+  synchronize: true       # Erstellt Tabellen
+  logging: true           # Für Debugging
+
+Nach erfolgreichem Start ändern zu:
+  synchronize: false      # Keine automatischen Schema-Änderungen
+  logging: false          # Performance
+
+
+package.json (my-vendure/)
+--------------------------
+Muss enthalten:
+  dependencies:
+    "bcrypt": "5.1.1"     # Explizit hinzufügen!
+  devDependencies:
+    "vite": "^6.3.6"
+    "@vitejs/plugin-react-swc": "^4.1.0"
+    "ts-node": "^10.9.2"
+
+================================================================================
+3. BEKANNTE PROBLEME & LÖSUNGEN
+================================================================================
+
+PROBLEM: bcrypt native binding fehlt
+-------------------------------------
+Fehler: Cannot find module 'bcrypt/lib/binding/napi-v3/bcrypt_lib.node'
+
+URSACHE:
+- Alpine Linux + pnpm = Probleme mit native modules
+- bcrypt muss für die Zielplattform kompiliert werden
+
+LÖSUNG:
+1. node:22-slim statt node:22-alpine verwenden
+2. Build-Tools installieren: python3, make, g++
+3. npm statt pnpm in Production-Stage
+4. bcrypt explizit in package.json dependencies
+
+
+PROBLEM: vite: not found
+------------------------
+LÖSUNG:
+In package.json devDependencies hinzufügen:
+  "vite": "^6.3.6"
+  "@vitejs/plugin-react-swc": "^4.1.0"
+
+
+PROBLEM: TypeScript Fehler devMode
+----------------------------------
+Fehler: Type 'boolean' is not assignable to type 'true'
+
+LÖSUNG:
+EmailPlugin.init({
+  devMode: true,  // Literal, nicht Variable!
+  ...
+})
+
+
+PROBLEM: Storefronts Build scheitert (ENOTFOUND vendure-server)
+---------------------------------------------------------------
+URSACHE: Next.js versucht beim Build den Server zu erreichen
+
+LÖSUNG:
+Backend und Storefronts GETRENNT deployen!
+1. Erst Backend starten und warten bis healthy
+2. Dann Storefronts bauen (Server ist erreichbar)
+
+
+PROBLEM: PostgreSQL Tabellen leer / synchronize funktioniert nicht
+-------------------------------------------------------------------
+URSACHE:
+- DB_SYNC Environment Variable wird nicht gelesen
+- Oder: Migrations-Ordner fehlt
+
+LÖSUNG:
+In vendure-config.ts direkt setzen:
+  synchronize: true   // Für ersten Start
+
+
+PROBLEM: Berechtigungsfehler beim Build (EACCES)
+------------------------------------------------
+LÖSUNG:
+sudo rm -rf node_modules dist
+pnpm install
+
+================================================================================
+4. DEPLOYMENT-SCHRITTE (BACKEND)
+================================================================================
+
+VORBEREITUNG (einmalig):
+------------------------
+cd /data/projects/vendure-deploy
+
+# 1. Sichere Passwörter generieren
+openssl rand -base64 32  # Für DB_PASSWORD
+openssl rand -base64 32  # Für COOKIE_SECRET
+openssl rand -base64 32  # Für REVALIDATION_SECRET
+
+# 2. .env erstellen und Werte eintragen
+cp .env.example .env
+nano .env
+
+# 3. Dependencies installieren (lokal, für Lock-File)
+cd my-vendure
+pnpm install
+cd ..
+
+
+BACKEND STARTEN:
+----------------
+# Alles in einem Befehl:
+docker compose -f docker-compose.backend.yml down && \
+docker compose -f docker-compose.backend.yml build --no-cache vendure-server && \
+docker compose -f docker-compose.backend.yml up -d && \
+docker compose -f docker-compose.backend.yml logs -f vendure-server
+
+# Warten bis:
+# "Vendure server (v3.5.2) now running on port 3000"
+
+
+TESTEN:
+-------
+# Dashboard öffnen
+http://localhost:3000/dashboard
+
+# API testen
+curl http://localhost:3000/shop-api?query={__typename}
+
+================================================================================
+5. DEPLOYMENT-SCHRITTE (STOREFRONTS)
+================================================================================
+
+WICHTIG: Erst starten wenn Backend läuft und healthy ist!
+
+STOREFRONT 1 (Bearshop):
+------------------------
+docker compose -f docker-compose.storefront1.yml build --no-cache
+docker compose -f docker-compose.storefront1.yml up -d
+docker compose -f docker-compose.storefront1.yml logs -f
+
+# Testen: http://localhost:3001
+
+
+STOREFRONT 2 (Neticare):
+------------------------
+docker compose -f docker-compose.storefront2.yml build --no-cache
+docker compose -f docker-compose.storefront2.yml up -d
+docker compose -f docker-compose.storefront2.yml logs -f
+
+# Testen: http://localhost:3002
+
+================================================================================
+6. COOLIFY-KONFIGURATION
+================================================================================
+
+DEPLOYMENT-STRATEGIE: 3 separate Services
+
+Service 1: Backend
+------------------
+- Name: vendure-backend
+- Compose File: docker-compose.backend.yml
+- Domain: shopadmin.neticare.at
+- Port: 3000
+- Environment Variables: Alle aus .env
+
+Service 2: Storefront Bearshop
+------------------------------
+- Name: storefront-bearshop
+- Compose File: docker-compose.storefront1.yml
+- Domain: shop1.neticare.at
+- Port: 3001
+- Depends on: vendure-backend
+
+Service 3: Storefront Neticare
+------------------------------
+- Name: storefront-neticare
+- Compose File: docker-compose.storefront2.yml
+- Domain: shop2.neticare.at
+- Port: 3002
+- Depends on: vendure-backend
+
+
+ENVIRONMENT VARIABLES in Coolify:
+---------------------------------
+Alle Variablen aus .env in Coolify eintragen.
+WICHTIG: Bei Storefronts VENDURE_INTERNAL_URL anpassen falls nötig!
+
+================================================================================
+7. NACH DEM DEPLOYMENT
+================================================================================
+
+1. VENDURE EINRICHTEN (im Dashboard):
+   - Countries anlegen (Settings → Countries)
+   - Zones erstellen (Settings → Zones)
+   - Tax Categories (Settings → Tax Categories)
+   - Tax Rates (Settings → Tax Rates)
+   - Channels erstellen: "bearshop" und "neticare"
+   - Produkte anlegen
+
+2. KONFIGURATION ANPASSEN:
+   In vendure-config.ts ändern:
+     synchronize: false
+     logging: false
+
+   Dann neu deployen!
+
+3. SUPERADMIN PASSWORT:
+   Nach erstem Login ändern!
+
+================================================================================
+8. NÜTZLICHE BEFEHLE
+================================================================================
+
+# Status aller Container
+docker compose -f docker-compose.backend.yml ps
+docker compose -f docker-compose.storefront1.yml ps
+
+# Logs anzeigen
+docker compose -f docker-compose.backend.yml logs -f vendure-server
+docker compose -f docker-compose.backend.yml logs -f postgres
+
+# In Container einloggen
+docker compose -f docker-compose.backend.yml exec vendure-server sh
+
+# Container neustarten
+docker compose -f docker-compose.backend.yml restart vendure-server
+
+# Alles stoppen
+docker compose -f docker-compose.backend.yml down
+
+# Alles stoppen + Volumes löschen (ACHTUNG: Datenverlust!)
+docker compose -f docker-compose.backend.yml down -v
+
+# Images löschen für sauberen Rebuild
+docker rmi vendure-deploy-vendure-server:latest
+
+# Docker Cache komplett löschen
+docker builder prune -f
+
+# Datenbank direkt zugreifen
+docker compose -f docker-compose.backend.yml exec postgres psql -U vendure -d vendure
+
+================================================================================
+CHECKLISTE VOR PRODUCTION
+================================================================================
+
+[ ] Sichere Passwörter in .env
+[ ] SUPERADMIN_PASSWORD geändert
+[ ] synchronize: false in vendure-config.ts
+[ ] logging: false in vendure-config.ts
+[ ] ASSET_URL_PREFIX auf richtige Domain
+[ ] STOREFRONT_URL auf richtige Domain
+[ ] Email-Plugin für Production konfigurieren (SMTP statt devMode)
+[ ] SSL/HTTPS in Coolify aktiviert
+[ ] Backups für PostgreSQL eingerichtet
+[ ] Volume für assets persistent gemountet
+
+================================================================================

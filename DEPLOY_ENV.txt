@@ -1,0 +1,1 @@
+DATABASE_URL: postgresql://vendure:Y4Ap5qRu6OqlDvLOCmKtPg@postgres:5432/vendure
