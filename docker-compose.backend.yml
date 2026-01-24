@@ -9,7 +9,7 @@ services:
   # ----------------------------------------
   postgres:
     image: postgres:16-alpine
-    container_name: vendure-postgres
+    # container_name: Coolify assigns its own names
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-vendure}
@@ -33,7 +33,7 @@ services:
     build:
       context: ./my-vendure
       dockerfile: Dockerfile
-    container_name: vendure-server
+    # container_name: Coolify assigns its own names
     restart: unless-stopped
     depends_on:
       postgres:
@@ -56,8 +56,9 @@ services:
       STOREFRONT_URL: ${STOREFRONT_URL:-https://shop1.neticare.at}
     volumes:
       - vendure_assets:/app/static/assets
-    ports:
-      - "3000:3000"
+    # ports: Coolify handles routing - no direct port mapping needed
+    expose:
+      - "3000"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/shop-api?query=%7B__typename%7D"]
       interval: 30s
