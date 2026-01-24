@@ -120,6 +120,7 @@ services:
     # ports: Coolify handles routing - no direct port mapping needed
     expose:
       - "3000"
+    #change 15:00 24012026
     healthcheck:
       test:
         [
