@@ -3,13 +3,13 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_NAME:-vendure}
-      POSTGRES_USER: ${DB_USERNAME:-vendure}
+      POSTGRES_DB: vendure
+      POSTGRES_USER: vendure
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-vendure}"]
+      test: ["CMD-SHELL", "pg_isready -U vendure"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -20,11 +20,14 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
-      POSTGRES_USER: ${DB_USERNAME:-vendure}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      COOKIE_SECRET: ${COOKIE_SECRET}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=vendure
+      - DB_USERNAME=vendure
+      - DB_PASSWORD=${DB_PASSWORD}
+      - COOKIE_SECRET=${COOKIE_SECRET}
+      - SUPERADMIN_USERNAME=superadmin
+      - SUPERADMIN_PASSWORD=${SUPERADMIN_PASSWORD}
     expose:
       - "3000"
     depends_on:
@@ -32,12 +35,6 @@ services:
         condition: service_healthy
     volumes:
       - vendure_assets:/app/static/assets
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
 
 volumes:
   postgres_data:
