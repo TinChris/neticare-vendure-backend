@@ -28,8 +28,11 @@ services:
       - COOKIE_SECRET=${COOKIE_SECRET}
       - SUPERADMIN_USERNAME=superadmin
       - SUPERADMIN_PASSWORD=${SUPERADMIN_PASSWORD}
-    expose:
-      - "3000"
+
+    ports:
+      - "10.0.11.132:3000:3000"
+
+
     depends_on:
       postgres:
         condition: service_healthy
@@ -41,6 +44,28 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+
+  vendure-worker:
+    build:
+      context: ./my-vendure
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=vendure
+      - DB_USERNAME=vendure
+      - DB_PASSWORD=${DB_PASSWORD}
+      - COOKIE_SECRET=${COOKIE_SECRET}
+      - SUPERADMIN_USERNAME=superadmin
+      - SUPERADMIN_PASSWORD=${SUPERADMIN_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - vendure_assets:/app/static/assets
+    command: ["node", "dist/index-worker.js"]
+
 
 volumes:
   postgres_data:
